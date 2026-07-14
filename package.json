@@ -1,0 +1,19 @@
+{
+  "name": "orion-backend",
+  "version": "1.0.0",
+  "description": "ORION GPS Asset Tracking Backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.0",
+    "mongoose": "^9.7.4",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  }
+}
