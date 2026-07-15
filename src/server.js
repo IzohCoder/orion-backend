@@ -37,6 +37,14 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+const userResponse = (user) => ({
+  id: user._id?.toString() || user.id,
+  email: user.email,
+  name: user.name,
+  profile: user.profile || {},
+  preferences: user.preferences || {}
+});
+
 // ── Auth Routes ─────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
@@ -46,8 +54,8 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const user = await data.registerUser(name, email, password);
     const token = uuidv4();
-    data.sessions.set(token, user.id);
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    data.sessions.set(token, user.id || user._id?.toString());
+    res.status(201).json({ token, user: userResponse(user) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -68,7 +76,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
   const token = uuidv4();
   data.sessions.set(token, user.id);
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  res.json({ token, user: userResponse(user) });
 });
 
 app.post('/api/auth/logout', authMiddleware, (req, res) => {
@@ -78,9 +86,37 @@ app.post('/api/auth/logout', authMiddleware, (req, res) => {
 });
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = data.users.find(u => u.id === req.userId);
+  const user = data.users.find(u => (u._id?.toString() || u.id) === req.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name });
+  res.json(userResponse(user));
+});
+
+// ── User Profile & Preferences Routes ───────────────────────
+app.get('/api/user/profile', authMiddleware, (req, res) => {
+  const user = data.users.find(u => (u._id?.toString() || u.id) === req.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    profile: user.profile || {},
+    preferences: user.preferences || {}
+  });
+});
+
+app.patch('/api/user/profile', authMiddleware, async (req, res) => {
+  try {
+    const updatedUser = await data.updateUserProfile(req.userId, req.body);
+    res.json(userResponse(updatedUser));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.patch('/api/user/settings', authMiddleware, async (req, res) => {
+  try {
+    const updatedUser = await data.updateUserPreferences(req.userId, req.body);
+    res.json(userResponse(updatedUser));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Asset Routes ────────────────────────────────────────────
@@ -107,6 +143,30 @@ app.post('/api/assets', authMiddleware, async (req, res) => {
   try {
     const asset = await data.addAsset(name, category, req.userId);
     res.status(201).json(asset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/assets/:id/tracking', authMiddleware, async (req, res) => {
+  const { trackingSource } = req.body;
+  if (!trackingSource || !['simulation', 'device'].includes(trackingSource)) {
+    return res.status(400).json({ error: 'trackingSource must be simulation or device' });
+  }
+  try {
+    const asset = await data.updateAssetTrackingSource(req.params.id, trackingSource, req.userId);
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    res.json(asset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/assets/:id/location', authMiddleware, async (req, res) => {
+  try {
+    const asset = await data.updateAssetLocation(req.params.id, req.body, req.userId);
+    if (!asset) return res.status(404).json({ error: 'Asset not found' });
+    res.json(asset);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -244,6 +304,7 @@ setInterval(() => {
       position: a.position,
       speed: Math.round(a.speed * 10) / 10,
       heading: Math.round(a.heading),
+      trackingSource: a.trackingSource || 'simulation',
       lastUpdate: a.lastUpdate
     })),
     newAlerts,

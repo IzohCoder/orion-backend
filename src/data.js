@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { User, Asset, Alert, Geofence } = require('./models');
+const { sendEmail } = require('./mailer');
 
 const users = [];
 const sessions = new Map(); // token -> userId (string)
@@ -49,7 +50,8 @@ async function initDB() {
     const demoUser = new User({
       name: 'Demo Operator',
       email: 'demo@orion.io',
-      password: hashedPassword
+      password: hashedPassword,
+      emailVerified: true
     });
     await demoUser.save();
     users.push(demoUser);
@@ -192,6 +194,12 @@ async function registerUser(name, email, password) {
   await user.save();
   users.push(user);
 
+  await seedUserDefaultData(user);
+
+  return user;
+}
+
+async function seedUserDefaultData(user) {
   // Seed default geofences for this user
   const gf1 = new Geofence({
     id: `gf-${uuidv4()}`,
@@ -211,7 +219,7 @@ async function registerUser(name, email, password) {
   await gf2.save();
   geofences.push(gf1, gf2);
 
-  // Seed default assets for this user (same 6 assets scoped to their userId)
+  // Seed default assets for this user
   const defaultAssets = [
     {
       id: uuidv4(),
@@ -310,8 +318,6 @@ async function registerUser(name, email, password) {
     await a.save();
     assets.push(a);
   }
-
-  return user;
 }
 
 async function addAlert(assetId, assetName, type, severity, message, userId) {
@@ -330,6 +336,30 @@ async function addAlert(assetId, assetName, type, severity, message, userId) {
   if (alerts.length > 200) {
     alerts.pop();
   }
+
+  // Find user to check notification preferences
+  const user = users.find(u => u._id.toString() === userId.toString());
+  if (user) {
+    const email = user.email;
+    const prefs = user.preferences || {};
+
+    if (prefs.emailEnabled && email) {
+      const subject = `[ORION Alert] ${severity.toUpperCase()}: ${assetName}`;
+      const htmlContent = `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ECE9E1; background-color: #FAF8F4; color: #1A1814;">
+          <h2 style="color: ${severity === 'critical' ? '#E8571F' : '#A39D8E'}; margin-top: 0;">ORION ALERT: ${severity.toUpperCase()}</h2>
+          <p><strong>Asset:</strong> ${assetName} (ID: ${assetId})</p>
+          <p><strong>Type:</strong> ${type.replace('_', ' ').toUpperCase()}</p>
+          <p><strong>Message:</strong> ${message}</p>
+          <p style="font-size: 11px; color: #A39D8E; margin-top: 20px; border-top: 1px solid #ECE9E1; padding-top: 10px;">
+            Sent automatically by ORION Tracker Platform. You can customize alert settings in your operator panel.
+          </p>
+        </div>
+      `;
+      sendEmail(email, subject, htmlContent).catch(err => console.error("Failed to send email alert:", err));
+    }
+  }
+
   return alert;
 }
 
@@ -365,6 +395,107 @@ async function removeAsset(id, userId) {
   return removed;
 }
 
+async function updateUserProfile(userId, profileData) {
+  const dbUser = await User.findById(userId);
+  if (!dbUser) throw new Error('User not found');
+  
+  if (!dbUser.profile) dbUser.profile = {};
+  
+  const fields = ['fullName', 'phoneNumber', 'avatar', 'role'];
+  fields.forEach(f => {
+    if (profileData[f] !== undefined) {
+      dbUser.profile[f] = profileData[f];
+    }
+  });
+  
+  if (profileData.emergencyContact) {
+    if (!dbUser.profile.emergencyContact) dbUser.profile.emergencyContact = {};
+    if (profileData.emergencyContact.name !== undefined) {
+      dbUser.profile.emergencyContact.name = profileData.emergencyContact.name;
+    }
+    if (profileData.emergencyContact.phone !== undefined) {
+      dbUser.profile.emergencyContact.phone = profileData.emergencyContact.phone;
+    }
+  }
+  
+  await dbUser.save();
+  
+  // Sync to local memory cache array
+  const cachedIdx = users.findIndex(u => u._id.toString() === userId.toString());
+  if (cachedIdx !== -1) {
+    users[cachedIdx] = dbUser;
+  }
+  
+  return dbUser;
+}
+
+async function updateUserPreferences(userId, prefsData) {
+  const dbUser = await User.findById(userId);
+  if (!dbUser) throw new Error('User not found');
+  
+  if (!dbUser.preferences) dbUser.preferences = {};
+  
+  const fields = ['pushEnabled', 'emailEnabled', 'smsEnabled', 'hardwareModeEnabled'];
+  fields.forEach(f => {
+    if (prefsData[f] !== undefined) {
+      dbUser.preferences[f] = prefsData[f];
+    }
+  });
+  
+  await dbUser.save();
+  
+  // Sync to local memory cache array
+  const cachedIdx = users.findIndex(u => u._id.toString() === userId.toString());
+  if (cachedIdx !== -1) {
+    users[cachedIdx] = dbUser;
+  }
+  
+  return dbUser;
+}
+
+async function updateAssetTrackingSource(id, trackingSource, userId) {
+  const asset = assets.find(a => a.id === id && a.userId.toString() === userId.toString());
+  if (!asset) return null;
+  asset.trackingSource = trackingSource;
+  await Asset.updateOne({ id, userId }, { $set: { trackingSource } });
+  return asset;
+}
+
+async function updateAssetLocation(id, locationData, userId) {
+  const asset = assets.find(a => a.id === id && a.userId.toString() === userId.toString());
+  if (!asset) return null;
+
+  const { lat, lng, speed, heading, battery } = locationData;
+  if (lat !== undefined && lng !== undefined) {
+    if (asset.position.lat !== lat || asset.position.lng !== lng) {
+      asset.trail.push({ lat: asset.position.lat, lng: asset.position.lng, t: Date.now() });
+      if (asset.trail.length > 50) asset.trail.shift();
+    }
+    asset.position = { lat, lng };
+  }
+  if (speed !== undefined) asset.speed = speed;
+  if (heading !== undefined) asset.heading = heading;
+  if (battery !== undefined) asset.battery = battery;
+  asset.lastUpdate = Date.now();
+  asset.status = 'active'; // force active when updating location
+
+  await Asset.updateOne(
+    { id, userId },
+    {
+      $set: {
+        position: asset.position,
+        speed: asset.speed,
+        heading: asset.heading,
+        battery: asset.battery,
+        trail: asset.trail,
+        status: asset.status,
+        lastUpdate: asset.lastUpdate
+      }
+    }
+  );
+  return asset;
+}
+
 module.exports = {
   users,
   sessions,
@@ -375,5 +506,9 @@ module.exports = {
   registerUser,
   addAlert,
   addAsset,
-  removeAsset
+  removeAsset,
+  updateUserProfile,
+  updateUserPreferences,
+  updateAssetTrackingSource,
+  updateAssetLocation
 };

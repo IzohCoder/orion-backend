@@ -3,7 +3,23 @@ const mongoose = require('mongoose');
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, index: true },
-  password: { type: String, required: true }
+  password: { type: String, required: true },
+  profile: {
+    fullName: { type: String, default: '' },
+    phoneNumber: { type: String, default: '' },
+    avatar: { type: String, default: '' },
+    role: { type: String, default: '' },
+    emergencyContact: {
+      name: { type: String, default: '' },
+      phone: { type: String, default: '' }
+    }
+  },
+  preferences: {
+    pushEnabled: { type: Boolean, default: true },
+    emailEnabled: { type: Boolean, default: true },
+    smsEnabled: { type: Boolean, default: true },
+    hardwareModeEnabled: { type: Boolean, default: false }
+  }
 });
 
 const AssetSchema = new mongoose.Schema({
@@ -25,6 +41,7 @@ const AssetSchema = new mongoose.Schema({
     lng: Number,
     t: Number
   }],
+  trackingSource: { type: String, enum: ['simulation', 'device'], default: 'simulation' },
   lastUpdate: { type: Number, default: Date.now },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true }
 });

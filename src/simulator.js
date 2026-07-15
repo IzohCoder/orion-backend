@@ -96,6 +96,11 @@ function tick() {
   for (const asset of data.assets) {
     const profile = PROFILES[asset.category] || PROFILES.equipment;
 
+    if (asset.trackingSource === 'device') {
+      checkAlerts(asset);
+      continue;
+    }
+
     // Skip offline assets most of the time
     if (asset.status === 'offline') {
       // Occasionally come back online
