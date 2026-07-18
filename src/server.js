@@ -182,6 +182,34 @@ app.delete('/api/assets/:id', authMiddleware, async (req, res) => {
   }
 });
 
+app.post('/api/assets/trigger-panic', authMiddleware, async (req, res) => {
+  try {
+    const asset = data.assets.find(
+      a => a.userId.toString() === req.userId.toString() && a.trackingSource === 'simulation'
+    );
+    if (!asset) return res.status(404).json({ error: 'No simulated assets found to trigger panic' });
+
+    // Force speed above 70 km/h threshold and move coordinates ~5km away to trigger geofence breach
+    asset.speed = 92.4;
+    asset.position.lat += 0.045;
+    asset.position.lng += 0.045;
+    asset.status = 'active';
+    asset.lastUpdate = Date.now();
+
+    const updated = await data.updateAssetLocation(asset.id, {
+      lat: asset.position.lat,
+      lng: asset.position.lng,
+      speed: asset.speed,
+      heading: asset.heading,
+      battery: asset.battery
+    }, req.userId);
+
+    res.json({ ok: true, triggeredAsset: updated.name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Alert Routes ────────────────────────────────────────────
 app.get('/api/alerts', authMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
