@@ -215,28 +215,36 @@ app.post('/api/assets/trigger-panic', authMiddleware, async (req, res) => {
       battery: asset.battery
     }, req.userId);
 
-    // Instantly create the alert
-    const alertMsg = `CRITICAL GEOFENCE BREACH: ${asset.name} left "HQ Perimeter" zone (speed: 92 km/h)`;
-    const alert = await data.addAlert(asset.id, asset.name, 'geofence_breach', 'critical', alertMsg, req.userId);
+    // Delay the geofence breach alert and WebSocket broadcast by exactly 10 seconds for presentation effect!
+    setTimeout(async () => {
+      try {
+        // Instantly create the alert
+        const alertMsg = `CRITICAL GEOFENCE BREACH: ${asset.name} left "HQ Perimeter" zone (speed: 92 km/h)`;
+        const alert = await data.addAlert(asset.id, asset.name, 'geofence_breach', 'critical', alertMsg, req.userId);
 
-    // Broadcast update immediately to all connected sockets
-    broadcast({
-      type: 'update',
-      assets: data.assets.map(a => ({
-        id: a.id,
-        name: a.name,
-        category: a.category,
-        status: a.status,
-        battery: Math.round(a.battery * 10) / 10,
-        position: a.position,
-        speed: Math.round(a.speed * 10) / 10,
-        heading: Math.round(a.heading),
-        trackingSource: a.trackingSource || 'simulation',
-        lastUpdate: a.lastUpdate
-      })),
-      newAlerts: [alert],
-      timestamp: Date.now()
-    });
+        // Broadcast update immediately to all connected sockets
+        broadcast({
+          type: 'update',
+          assets: data.assets.map(a => ({
+            id: a.id,
+            name: a.name,
+            category: a.category,
+            status: a.status,
+            battery: Math.round(a.battery * 10) / 10,
+            position: a.position,
+            speed: Math.round(a.speed * 10) / 10,
+            heading: Math.round(a.heading),
+            trackingSource: a.trackingSource || 'simulation',
+            lastUpdate: a.lastUpdate
+          })),
+          newAlerts: [alert],
+          timestamp: Date.now()
+        });
+        console.log(`[PANIC] Delayed alert broadcasted successfully for ${asset.name}`);
+      } catch (err) {
+        console.error('[PANIC] Failed to broadcast delayed alert:', err);
+      }
+    }, 10000);
 
     res.json({ ok: true, triggeredAsset: updated.name });
   } catch (err) {

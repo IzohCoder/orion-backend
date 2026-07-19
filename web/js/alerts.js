@@ -32,9 +32,8 @@ const OrionAlerts = (() => {
       masterGain.gain.setValueAtTime(0.7, now);
       masterGain.connect(audioContext.destination);
 
-      if (isCritical) {
-        // Alternating two-tone siren: 880Hz ↔ 660Hz
-        for (let i = 0; i < 4; i++) {
+        // Alternating two-tone siren: 880Hz ↔ 660Hz (runs for 10 seconds total)
+        for (let i = 0; i < 20; i++) {
           const osc = audioContext.createOscillator();
           const oscGain = audioContext.createGain();
           osc.connect(oscGain);
@@ -81,7 +80,11 @@ const OrionAlerts = (() => {
   function vibrate(isCritical) {
     if (!navigator.vibrate) return;
     if (isCritical) {
-      navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
+      // 10 seconds of alternating vibration (1s vibrate, 0.5s pause)
+      navigator.vibrate([
+        1000, 500, 1000, 500, 1000, 500, 1000, 500, 
+        1000, 500, 1000, 500, 1000, 500
+      ]);
     } else {
       navigator.vibrate([300]);
     }
@@ -99,7 +102,7 @@ const OrionAlerts = (() => {
     banner.style.display = 'flex';
 
     if (bannerTimeout) clearTimeout(bannerTimeout);
-    bannerTimeout = setTimeout(() => dismissBanner(), alert.severity === 'critical' ? 8000 : 4000);
+    bannerTimeout = setTimeout(() => dismissBanner(), alert.severity === 'critical' ? 10000 : 4000);
   }
 
   function dismissBanner() {

@@ -7,7 +7,9 @@ const OrionWS = (() => {
   let socket = null;
   let shouldReconnect = false;
   let reconnectTimer = null;
-  const BASE_WS = 'wss://orion-backend-rcgw.onrender.com';
+  const BASE_WS = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    ? 'wss://orion-backend-rcgw.onrender.com' // Fallback to live server during local web dev
+    : window.location.origin.replace(/^http/, 'ws');
 
   // Parsed live data state
   let assets = [];

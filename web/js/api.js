@@ -4,7 +4,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 const OrionAPI = (() => {
-  const BASE_URL = 'https://orion-backend-rcgw.onrender.com';
+  const BASE_URL = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    ? 'https://orion-backend-rcgw.onrender.com' // Fallback to live server during local web dev
+    : window.location.origin;
   let authToken = null;
 
   async function login() {
