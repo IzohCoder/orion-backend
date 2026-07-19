@@ -80,14 +80,18 @@ const OrionAlerts = (() => {
   // ── Phone vibrate (works on Android Chrome/Firefox) ─────────
   function vibrate(isCritical) {
     if (!navigator.vibrate) return;
-    if (isCritical) {
-      // 10 seconds of alternating vibration (1s vibrate, 0.5s pause)
-      navigator.vibrate([
-        1000, 500, 1000, 500, 1000, 500, 1000, 500, 
-        1000, 500, 1000, 500, 1000, 500
-      ]);
-    } else {
-      navigator.vibrate([300]);
+    try {
+      if (isCritical) {
+        // 10 seconds of alternating vibration (1s vibrate, 0.5s pause)
+        navigator.vibrate([
+          1000, 500, 1000, 500, 1000, 500, 1000, 500, 
+          1000, 500, 1000, 500, 1000, 500
+        ]);
+      } else {
+        navigator.vibrate([300]);
+      }
+    } catch (e) {
+      console.warn('[ORION] Vibration blocked or unsupported:', e);
     }
   }
 
