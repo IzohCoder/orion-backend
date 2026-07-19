@@ -32,6 +32,7 @@ const OrionAlerts = (() => {
       masterGain.gain.setValueAtTime(0.7, now);
       masterGain.connect(audioContext.destination);
 
+      if (isCritical) {
         // Alternating two-tone siren: 880Hz ↔ 660Hz (runs for 10 seconds total)
         for (let i = 0; i < 20; i++) {
           const osc = audioContext.createOscillator();
