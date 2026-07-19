@@ -34,9 +34,27 @@ const OrionMap = (() => {
       attributionControl: false
     });
 
-    // Use CartoDB Positron tiles — clean, minimal, matches the aesthetic
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // 1. Vector Map Layer (OSM CartoDB Light)
+    const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
+    });
+
+    // 2. Google Maps Satellite/Hybrid Layer (OSM compatible)
+    const satelliteLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20
+    });
+
+    // Add default layer
+    streetLayer.addTo(leafletMap);
+
+    // Layer selection control
+    const baseLayers = {
+      "Vector Map": streetLayer,
+      "Satellite": satelliteLayer
+    };
+
+    L.control.layers(baseLayers, null, {
+      position: 'topright'
     }).addTo(leafletMap);
 
     // Fix zoom control position

@@ -241,6 +241,33 @@ app.post('/api/assets/trigger-panic', authMiddleware, async (req, res) => {
           timestamp: Date.now()
         });
         console.log(`[PANIC] Delayed alert broadcasted successfully for ${asset.name}`);
+
+        // Send direct presentation email to the presenter's personal inbox
+        try {
+          const { sendEmail } = require('./mailer');
+          const subject = `[ORION Alert] CRITICAL PANIC PERIMETER BREACH: ${asset.name}`;
+          const htmlContent = `
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ECE9E1; background-color: #FAF8F4; color: #1A1814;">
+              <h2 style="color: #E8571F; margin-top: 0; font-size: 20px; letter-spacing: 0.5px;">🚨 ORION SECURITY: GEOFENCE BREACH</h2>
+              <p><strong>Asset Name:</strong> ${asset.name}</p>
+              <p><strong>Tracking Mode:</strong> Simulation Mode (Triggered Panic Action)</p>
+              <p><strong>Breach Type:</strong> Critical Geofence Perimeter Exit</p>
+              <p><strong>Telemetry:</strong> Lat: ${asset.position.lat.toFixed(5)}, Lng: ${asset.position.lng.toFixed(5)}</p>
+              <p><strong>Speed:</strong> ${asset.speed} km/h (Limit: 70 km/h)</p>
+              <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+              <hr style="border: none; border-top: 1px solid #ECE9E1; margin: 20px 0;">
+              <p style="font-size: 11px; color: #A39D8E; margin-top: 10px;">
+                This message was auto-routed directly to the administrator inbox for demonstration validation.
+              </p>
+            </div>
+          `;
+          sendEmail('nduraisaac2001@gmail.com', subject, htmlContent).catch(err => 
+            console.error('[PANIC] Failed to send personal email alert:', err)
+          );
+        } catch (mailErr) {
+          console.error('[PANIC] Error initiating email dispatch:', mailErr);
+        }
+
       } catch (err) {
         console.error('[PANIC] Failed to broadcast delayed alert:', err);
       }
