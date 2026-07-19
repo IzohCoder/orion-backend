@@ -343,7 +343,10 @@ async function addAlert(assetId, assetName, type, severity, message, userId) {
     const email = user.email;
     const prefs = user.preferences || {};
 
-    if (prefs.emailEnabled && email) {
+    // Only send background alerts for real user accounts (e.g. nduraisaac2001@gmail.com)
+    // and block demo@orion.io alerts from triggering automatic background emails.
+    // This saves your 100 free SendGrid credits for the live presentation panic email!
+    if (prefs.emailEnabled && email && email !== 'demo@orion.io' && !email.endsWith('orion.io')) {
       const subject = `[ORION Alert] ${severity.toUpperCase()}: ${assetName}`;
       const htmlContent = `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ECE9E1; background-color: #FAF8F4; color: #1A1814;">
