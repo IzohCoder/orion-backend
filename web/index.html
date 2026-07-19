@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ORION — Asset Tracking System</title>
+  <meta name="description" content="ORION GPS Asset Tracking — Live telemetry dashboard for real-time fleet monitoring and geofence alerting.">
+  <meta name="theme-color" content="#FAF8F4">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="css/orion.css">
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- SPLASH SCREEN (satisfies browser audio autoplay policy) -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="splash" class="splash">
+    <div class="splash-rings">
+      <div class="splash-ring splash-ring-1"></div>
+      <div class="splash-ring splash-ring-2"></div>
+      <div class="splash-ring splash-ring-3"></div>
+    </div>
+    <div class="splash-content">
+      <h1 class="splash-logo">ORION</h1>
+      <p class="splash-subtitle">ASSET TRACKING SYSTEM</p>
+      <div class="splash-line"></div>
+      <div class="splash-status">
+        <div class="splash-spinner"></div>
+        <span id="splash-status-text">CONNECTING...</span>
+      </div>
+    </div>
+    <div class="splash-bottom">
+      <button id="splash-enter" class="splash-enter-btn" style="display:none;">TAP TO ENTER</button>
+      <p class="splash-version">V1.0 — ORION SYSTEMS</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- MAIN APP SHELL -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="app" class="app" style="display:none;">
+
+    <!-- Alert Flash Overlay -->
+    <div id="alert-flash" class="alert-flash"></div>
+
+    <!-- Alert Banner (top) -->
+    <div id="alert-banner" class="alert-banner" style="display:none;">
+      <div class="alert-banner-icon">🚨</div>
+      <div class="alert-banner-content">
+        <strong id="alert-banner-title"></strong>
+        <span id="alert-banner-message"></span>
+      </div>
+      <button class="alert-banner-close" onclick="ORION.alerts.dismissBanner()">✕</button>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+      <div class="nav-brand">
+        <span class="nav-logo">ORION</span>
+        <span class="nav-connection" id="nav-connection">
+          <span class="connection-dot"></span>
+          <span class="connection-text">OFFLINE</span>
+        </span>
+      </div>
+      <div class="nav-links">
+        <a href="#/dashboard" class="nav-link active" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <span>DASH</span>
+        </a>
+        <a href="#/map" class="nav-link" data-view="map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          <span>MAP</span>
+        </a>
+        <a href="#/assets" class="nav-link" data-view="assets">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <span>ASSETS</span>
+        </a>
+        <a href="#/alerts" class="nav-link" data-view="alerts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span>ALERTS</span>
+          <span class="nav-badge" id="alert-badge" style="display:none;">0</span>
+        </a>
+        <a href="#/analytics" class="nav-link" data-view="analytics">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>ANALYTICS</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- View Container -->
+    <main class="view-container" id="view-container">
+
+      <!-- ── DASHBOARD VIEW ──────────────────────────── -->
+      <section id="view-dashboard" class="view" style="display:none;">
+        <div class="view-header">
+          <h1 class="view-title">SYSTEM DASHBOARD</h1>
+          <span class="view-subtitle">REAL-TIME TELEMETRY OVERVIEW</span>
+        </div>
+
+        <!-- Stat Cards Grid -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">TOTAL ASSETS</span>
+            <span class="stat-value" id="stat-total">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">ACTIVE</span>
+            <span class="stat-value stat-green" id="stat-active">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">ALERTS TODAY</span>
+            <span class="stat-value stat-orange" id="stat-alerts">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">AVG BATTERY</span>
+            <span class="stat-value" id="stat-battery">0%</span>
+          </div>
+        </div>
+
+        <!-- Live Console Feed -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">LIVE TELEMETRY FEED</span>
+            <span class="card-badge live-badge">● LIVE</span>
+          </div>
+          <div class="console-feed" id="console-feed"></div>
+        </div>
+
+        <!-- Asset Table -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">ASSET STATUS</span>
+          </div>
+          <div class="table-scroll">
+            <table class="asset-table" id="dashboard-table">
+              <thead>
+                <tr>
+                  <th>ASSET</th>
+                  <th>STATUS</th>
+                  <th>COORDINATES</th>
+                  <th>SPEED</th>
+                  <th>BATTERY</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── MAP VIEW ────────────────────────────────── -->
+      <section id="view-map" class="view view-map" style="display:none;">
+        <div class="map-header">
+          <span class="map-label">LIVE MAP</span>
+          <span class="map-asset-count" id="map-asset-count">0 ASSETS</span>
+        </div>
+        <div id="leaflet-map" class="leaflet-map"></div>
+        <!-- Asset Detail Popup -->
+        <div id="map-popup" class="map-popup" style="display:none;">
+          <div class="map-popup-header">
+            <span class="map-popup-title" id="map-popup-title">ASSET DETAILS</span>
+            <button class="map-popup-close" onclick="ORION.map.closePopup()">CLOSE ✕</button>
+          </div>
+          <div class="map-popup-body">
+            <div class="map-popup-row">
+              <div>
+                <div class="map-popup-name" id="map-popup-name"></div>
+                <div class="map-popup-category" id="map-popup-category"></div>
+                <div class="map-popup-coords" id="map-popup-coords"></div>
+              </div>
+              <div class="map-popup-stats">
+                <div class="map-popup-status" id="map-popup-status"></div>
+                <div class="map-popup-speed" id="map-popup-speed"></div>
+                <div class="map-popup-battery" id="map-popup-battery"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ASSETS VIEW ─────────────────────────────── -->
+      <section id="view-assets" class="view" style="display:none;">
+        <div class="view-header">
+          <h1 class="view-title">ASSET REGISTRY</h1>
+          <span class="view-subtitle">ALL TRACKED ENTITIES</span>
+        </div>
+        <div class="card">
+          <div class="table-scroll">
+            <table class="asset-table" id="assets-table">
+              <thead>
+                <tr>
+                  <th>NAME</th>
+                  <th>ID</th>
+                  <th>CATEGORY</th>
+                  <th>STATUS</th>
+                  <th>SPEED</th>
+                  <th>BATTERY</th>
+                  <th>SOURCE</th>
+                  <th>LAST UPDATE</th>
+                </tr>
+              </thead>
+              <tbody id="assets-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ALERTS VIEW ─────────────────────────────── -->
+      <section id="view-alerts" class="view" style="display:none;">
+        <div class="view-header">
+          <h1 class="view-title">ALERTS DECK</h1>
+          <span class="view-subtitle">SYSTEM WARNINGS & CRITICAL EVENTS</span>
+        </div>
+        <div id="alerts-list" class="alerts-list">
+          <div class="alerts-empty" id="alerts-empty">
+            <span class="alerts-empty-icon">✓</span>
+            <span>ALL SYSTEMS NOMINAL — NO ACTIVE ALERTS</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ANALYTICS VIEW ──────────────────────────── -->
+      <section id="view-analytics" class="view" style="display:none;">
+        <div class="view-header">
+          <h1 class="view-title">TELEMETRY ANALYTICS</h1>
+          <span class="view-subtitle">FLEET PERFORMANCE METRICS</span>
+        </div>
+        <div class="analytics-grid">
+          <div class="card">
+            <div class="card-header"><span class="card-title">SPEED DISTRIBUTION</span></div>
+            <canvas id="chart-speed" class="chart-canvas"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">BATTERY LEVELS</span></div>
+            <canvas id="chart-battery" class="chart-canvas"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">STATUS BREAKDOWN</span></div>
+            <canvas id="chart-status" class="chart-canvas"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">CATEGORY MIX</span></div>
+            <canvas id="chart-category" class="chart-canvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- App Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/ws.js"></script>
+  <script src="js/alerts.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

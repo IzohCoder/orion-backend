@@ -1,6 +1,7 @@
 // ORION — Main Server
 // Express REST API + WebSocket server for real-time GPS updates
 require('dotenv').config();
+const path = require('path');
 
 const dns = require('dns');
 try {
@@ -26,6 +27,16 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ── Serve Web Companion Dashboard (static files) ─────────────
+// On Render: web/ is at backend/web/ (copied into the backend repo)
+// On local dev: web/ is at ../../web (project root)
+const fs = require('fs');
+const WEB_DIR_INSIDE = path.join(__dirname, '../web');
+const WEB_DIR_OUTSIDE = path.join(__dirname, '../../web');
+const WEB_DIR = fs.existsSync(WEB_DIR_INSIDE) ? WEB_DIR_INSIDE : WEB_DIR_OUTSIDE;
+console.log(`[WEB] Serving dashboard from: ${WEB_DIR}`);
+app.use(express.static(WEB_DIR));
 
 // ── Auth middleware ──────────────────────────────────────────
 function authMiddleware(req, res, next) {
@@ -246,6 +257,14 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 // ── Health ───────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime(), assets: data.assets.length });
+});
+
+// ── SPA Catch-all (must be AFTER all /api routes) ────────────
+// Returns index.html for any non-API GET — enables hash routing
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(WEB_DIR, 'index.html'));
+  }
 });
 
 // ── HTTP + WebSocket Server ─────────────────────────────────
